@@ -14,7 +14,7 @@ mail-server if you want.
 
 Here's an example: 
 
-`
+```
 - name: HomePage
   expected string: Joseph Graham
   canonical address: https://www.xylon.me.uk/
@@ -37,10 +37,10 @@ Here's an example:
 Summary:
 8 tests passed
 0 tests failed
-`
+```
 
 This translates into 8 checks and produces the following output: 
-`
+```
 IPv4, does "www.xylon.me.uk" return string over "TLS"?
  Test Success!
 IPv6, does "www.xylon.me.uk" return string over "TLS"?
@@ -57,7 +57,7 @@ IPv4, does "xylon.me.uk" redirect over "no-TLS"?
  Test Success!
 IPv6, does "xylon.me.uk" redirect over "no-TLS"?
  Test Success!
-`
+```
 
 To monitor all 10 of my websites like this means 64 checks. To get
 this many checks with UptimeRobot would require a Pro plan and it
@@ -72,15 +72,15 @@ Dependencies are:
 
 To find out the options please run:
 
-`
+```
 ./xylositemonitor.py --help
-`
+```
 
 I use it as a cron job on a dedicated monitoring server: 
-`
+```
 25 5 * * * /usr/local/bin/xylositemonitor.py --annotation 'SiteMonitor daily' --mailto joseph@xylon.me.uk
 33 * * * * /usr/local/bin/xylositemonitor.py --annotation 'SiteMonitor hourly' --mailto joseph@xylon.me.uk --email-only-on-fail
-`
+```
 
 This way I get an email every day, usually telling me all tests
 passed. And there's also an hourly check which only sends an email on

@@ -173,7 +173,7 @@ def perform_test():
             action + ' over "' + protocol + '"?' + "\n"
     else:
         print(ipver + ', does "' + url + '" ' +
-              action + ' over "' + protocol + '"?')
+            action + ' over "' + protocol + '"?')
 
     buffer = BytesIO()
     c = pycurl.Curl()
@@ -186,6 +186,9 @@ def perform_test():
     c.setopt(c.WRITEFUNCTION, buffer.write)
     c.setopt(c.HEADERFUNCTION, header_function)
 
+    # the reason we use a global variable here is because when we call
+    # c.perform() below it will call header_function, which will then
+    # modify this variable in the global scope so we can access it
     global headers
     headers = {}
     try:

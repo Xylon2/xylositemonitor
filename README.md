@@ -61,9 +61,9 @@ IPv6, does "xylon.me.uk" redirect over "no-TLS"?
 
 To monitor all 10 of my websites like this means 64 checks. To get
 this many checks with UptimeRobot would require a Pro plan and it
-wouldn't allow me to test IPv4 vs 6. Rival service Pingdom can do IPv4
-or 6 but this many checks would require an "Advanced" plan for £48 GBP
-per month!
+wouldn't allow me to explicitly test IPv4 vs IPv6. Rival service
+Pingdom can do IPv4 or 6 but this many checks would require an
+"Advanced" plan for £48 GBP per month!
 
 Dependencies are:
 - python3

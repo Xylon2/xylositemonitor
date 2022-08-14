@@ -10,6 +10,8 @@ import yaml
 import pycurl  # pycurl is annoyingly low-level but the easier
                # "requests" module does not allow forcing IP version
 
+from functools import reduce
+
 # Command line arguments.
 parser = argparse.ArgumentParser(description='Tests websites.')
 parser.add_argument('--sites-file', dest='sitesfile')
@@ -58,7 +60,7 @@ with open(sitesfile, 'r') as stream:
     sites = yaml.safe_load(stream)
 
 def send_mail(subject, mail_body):
-    """this function uses a global called mail_body"""
+    """send the mail"""
     import smtplib
     from email.mime.text import MIMEText
 
@@ -119,61 +121,47 @@ BCOLORS = {
     }
 
 def config_fail(message):
-    if mailto:
-        global mail_body
-        mail_body += '  Config Error! ' + message + "\n"
-        send_mail('config error!', mail_body)
-    else:
+    if not mailto:
         print(BCOLORS["WARNING"] + '  Config Error! ' + message + BCOLORS["ENDC"])
+
+    else:
+        mail_body = '  Config Error! ' + message + "\n"
+
+        send_mail('config error!', mail_body)
 
     sys.exit()
 
 def test_fail(message):
     global fail_count
-
-    if mailto:
-        global mail_body
-        mail_body += "  Test Fail! " + message + "\n"
-    else:
-        print(BCOLORS["FAIL"] + "  Test Fail! " + message + BCOLORS["ENDC"])
-
     fail_count += 1
+
+    return {
+        "success": False,
+        "text_body": BCOLORS["FAIL"] + "  Test Fail! " + message + BCOLORS["ENDC"] + "\n",
+        "mail_body": "  Test Fail! " + message + "\n"
+    }
+
 
 def test_success():
     global success_count
-
-    if mailto:
-        global mail_body
-        mail_body += " Test Success!" + "\n"
-    else:
-        print(BCOLORS["OKGREEN"] + " Test Success!" + BCOLORS["ENDC"])
-
     success_count += 1
+
+    return {
+        "success": True,
+        "text_body": BCOLORS["OKGREEN"] + " Test Success!" + BCOLORS["ENDC"] + "\n",
+        "mail_body": " Test Success!" + "\n"
+    }
+
 
 success_count = 0
 fail_count = 0
 if mailto:
     mail_body = ""
 
-def perform_test():
-    if ipver == "IPv4":
-        if not testipv4:
-            return
-
-        curliptype = pycurl.IPRESOLVE_V4
-
-    elif ipver == "IPv6":
-        if not testipv6:
-            return
-
-        curliptype = pycurl.IPRESOLVE_V6
-
-    if mailto:
-        mail_body += ipver + ', does "' + url + '" ' + \
-            action + ' over "' + protocol + '"?' + "\n"
-    else:
-        print(ipver + ', does "' + url + '" ' +
-            action + ' over "' + protocol + '"?')
+def perform_test(ipver, testipv4, testipv6, prefix,
+                 url, action, ex_string, can_address,
+                 curliptype):
+    """we return a dictionary like {"success": True, "text_body": "blah", "mail_body": "blah"}"""
 
     buffer = BytesIO()
     c = pycurl.Curl()
@@ -194,8 +182,7 @@ def perform_test():
     try:
         c.perform()
     except pycurl.error as e:
-        test_fail(str(e))
-        return
+        return test_fail(str(e))
 
     c.close()
 
@@ -215,8 +202,7 @@ def perform_test():
     responsebody = body.decode(encoding)
 
     if 'status' not in headers:
-        test_fail("Can't get HTTP response code!")
-        return
+        return test_fail("Can't get HTTP response code!")
 
     # The test hasn't failed yet!
     # Now we just need to test that "action" has been
@@ -231,17 +217,14 @@ def perform_test():
     #     this checks that the status is a redirect code to the specified URL
     if action == "http success":
         if headers['status'] != "200":
-            test_fail("HTTP status is: " + headers['status'])
-            return
+            return test_fail("HTTP status is: " + headers['status'])
         else:
-            test_success()
-            return
+            return test_success()
 
     if action == "return string":
         # just check at least the status is 200 before even checking string
         if headers['status'] != "200":
-            test_fail("HTTP status is: " + headers['status'])
-            return
+            return test_fail("HTTP status is: " + headers['status'])
 
         # we need ex_string var for this test
         try:
@@ -256,24 +239,20 @@ def perform_test():
             # non-string
         except (TypeError, AttributeError):
             config_fail('"return string" check specified but ' +
-                        '"ex_string" is not defined!')
+                        '"expected string" is not defined!')
 
         # now we grep for the expected string in the response body
         if not ex_string in responsebody:
-            test_fail("Don't find expected string!")
-            return
+            return test_fail("Don't find expected string!")
         else:
-            test_success()
-            return
+            return test_success()
 
     if action == "redirect":
         if headers['status'][:1] != "3":
-            test_fail("Response code is not a redirect: " +headers['status'])
-            return
+            return test_fail("Response code is not a redirect: " +headers['status'])
 
         if 'location' not in headers:
-            test_fail("Response code is a redirect but no Location header!")
-            return
+            return test_fail("Response code is a redirect but no Location header!")
 
         # we need can_address var for this test
         try:
@@ -288,22 +267,20 @@ def perform_test():
             # non-string
         except (TypeError, AttributeError):
             config_fail('"redirect" check specified but ' +
-                        '"can_address" is not defined!')
+                        '"canonical address" is not defined!')
 
         # now we check redirect location
         if not headers['location'] == can_address:
-            test_fail("Redirect location is wrong: " + headers['location'])
-            return
+            return test_fail("Redirect location is wrong: " + headers['location'])
         else:
-            test_success()
-            return
+            return test_success()
 
     # if we got here it means we didn't recognise the action
     config_fail('action not recognised!')
 
 
-for site in sites:
-    name = site["name"]
+def test_site(site):
+    buildme = {"name": site["name"], "tests": []}
     try:
         ex_string = site["expected string"]
     except KeyError:
@@ -341,11 +318,71 @@ for site in sites:
                     config_fail('Supported protocols are "TLS" and "no-TLS".')
 
                 for ipver in ("IPv4", "IPv6",):
+                    if ipver == "IPv4":
+                        if not testipv4:
+                            continue
 
-                    perform_test()
+                        curliptype = pycurl.IPRESOLVE_V4
 
+                    elif ipver == "IPv6":
+                        if not testipv6:
+                            continue
 
-if mailto:
+                        curliptype = pycurl.IPRESOLVE_V6
+
+                    # here we actually run the tests
+                    result = perform_test(ipver, testipv4, testipv6, prefix,
+                                          url, action, ex_string, can_address,
+                                          curliptype)
+
+                    # prepend test description
+                    result["mail_body"] = ipver + ', does "' + url + '" ' + \
+                        action + ' over "' + protocol + '"?' + "\n" + result["mail_body"]
+                    result["text_body"] = ipver + ', does "' + url + '" ' + \
+                        action + ' over "' + protocol + '"?' + "\n" + result["text_body"]
+
+                    buildme["tests"] += [result]
+
+    # if any of the tests for this site failed, the site as a whole is
+    # considered to have failed
+    if False in [test["success"] for test in buildme["tests"]]:
+        buildme["success"] = False
+
+    else:
+        buildme["success"] = True
+
+    return buildme
+
+# this is a list of dicts
+siteresults = [test_site(site) for site in sites]
+
+# sort the sites based on success
+siteresultssorted = sorted(siteresults, key=lambda x: x["success"])
+
+if not mailto:
+    for site in siteresultssorted:
+        print("_" + site["name"] + "_")
+        print("")
+
+        for test in site["tests"]:
+            print(test["text_body"])
+
+        print("")
+
+    print("")
+    print("Summary:")
+    print(str(success_count) + " tests passed")
+    print(str(fail_count) + " tests failed")
+
+else:
+    for site in siteresultssorted:
+        mail_body += "_" + site["name"] + "_\n\n"
+
+        for test in site["tests"]:
+            mail_body += test["mail_body"] + "\n"
+
+        mail_body += "\n"
+
     mail_body += "\n"
     mail_body += "Summary:\n"
     mail_body += str(success_count) + " tests passed\n"
@@ -357,8 +394,3 @@ if mailto:
     else:
         if not emailonlyfail:
             send_mail("all " + str(success_count) + " tests passed", mail_body)
-
-print("")
-print("Summary:")
-print(str(success_count) + " tests passed")
-print(str(fail_count) + " tests failed")

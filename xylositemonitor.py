@@ -57,7 +57,7 @@ if not os.path.isfile(sitesfile):
 with open(sitesfile, 'r') as stream:
     sites = yaml.safe_load(stream)
 
-def send_mail(subject):
+def send_mail(subject, mail_body):
     """this function uses a global called mail_body"""
     import smtplib
     from email.mime.text import MIMEText
@@ -122,7 +122,7 @@ def config_fail(message):
     if mailto:
         global mail_body
         mail_body += '  Config Error! ' + message + "\n"
-        send_mail('config error!')
+        send_mail('config error!', mail_body)
     else:
         print(BCOLORS["WARNING"] + '  Config Error! ' + message + BCOLORS["ENDC"])
 
@@ -154,6 +154,150 @@ success_count = 0
 fail_count = 0
 if mailto:
     mail_body = ""
+
+def perform_test():
+    if ipver == "IPv4":
+        if not testipv4:
+            return
+
+        curliptype = pycurl.IPRESOLVE_V4
+
+    elif ipver == "IPv6":
+        if not testipv6:
+            return
+
+        curliptype = pycurl.IPRESOLVE_V6
+
+    if mailto:
+        mail_body += ipver + ', does "' + url + '" ' + \
+            action + ' over "' + protocol + '"?' + "\n"
+    else:
+        print(ipver + ', does "' + url + '" ' +
+              action + ' over "' + protocol + '"?')
+
+    buffer = BytesIO()
+    c = pycurl.Curl()
+    c.setopt(c.URL, prefix + url)
+    c.setopt(c.FOLLOWLOCATION, False)
+    c.setopt(c.TIMEOUT, 8)
+    c.setopt(c.ACCEPT_ENCODING, "")
+    c.setopt(c.USERAGENT, "xylositemonitor")
+    c.setopt(c.IPRESOLVE, curliptype)
+    c.setopt(c.WRITEFUNCTION, buffer.write)
+    c.setopt(c.HEADERFUNCTION, header_function)
+
+    global headers
+    headers = {}
+    try:
+        c.perform()
+    except pycurl.error as e:
+        test_fail(str(e))
+        return
+
+    c.close()
+
+    # Figure out what encoding was sent with the response, if any.
+    # Check against lowercased header name.
+    encoding = None
+    if 'content-type' in headers:
+        content_type = headers['content-type'].lower()
+        match = re.search(r'charset=(\S+)', content_type)
+        if match:
+            encoding = match.group(1)
+    if encoding is None:
+        # Default encoding for HTML is iso-8859-1
+        encoding = 'iso-8859-1'
+
+    body = buffer.getvalue()
+    responsebody = body.decode(encoding)
+
+    if 'status' not in headers:
+        test_fail("Can't get HTTP response code!")
+        return
+
+    # The test hasn't failed yet!
+    # Now we just need to test that "action" has been
+    # met
+
+    # There are three supported actions
+    # http success
+    #     this just tests for 200 status
+    # return string
+    #     this checks for 200 and the contents of the page for an expected string
+    # redirect
+    #     this checks that the status is a redirect code to the specified URL
+    if action == "http success":
+        if headers['status'] != "200":
+            test_fail("HTTP status is: " + headers['status'])
+            return
+        else:
+            test_success()
+            return
+
+    if action == "return string":
+        # just check at least the status is 200 before even checking string
+        if headers['status'] != "200":
+            test_fail("HTTP status is: " + headers['status'])
+            return
+
+        # we need ex_string var for this test
+        try:
+            re.search('[a-zA-Z0-9]+', ex_string).group(0)  # this
+            # will
+            # error
+            # on
+            # both
+            # blank
+            # string
+            # and
+            # non-string
+        except (TypeError, AttributeError):
+            config_fail('"return string" check specified but ' +
+                        '"ex_string" is not defined!')
+
+        # now we grep for the expected string in the response body
+        if not ex_string in responsebody:
+            test_fail("Don't find expected string!")
+            return
+        else:
+            test_success()
+            return
+
+    if action == "redirect":
+        if headers['status'][:1] != "3":
+            test_fail("Response code is not a redirect: " +headers['status'])
+            return
+
+        if 'location' not in headers:
+            test_fail("Response code is a redirect but no Location header!")
+            return
+
+        # we need can_address var for this test
+        try:
+            re.search('[a-zA-Z0-9]+', can_address).group(0)  # this
+            # will
+            # error
+            # on
+            # both
+            # blank
+            # string
+            # and
+            # non-string
+        except (TypeError, AttributeError):
+            config_fail('"redirect" check specified but ' +
+                        '"can_address" is not defined!')
+
+        # now we check redirect location
+        if not headers['location'] == can_address:
+            test_fail("Redirect location is wrong: " + headers['location'])
+            return
+        else:
+            test_success()
+            return
+
+    # if we got here it means we didn't recognise the action
+    config_fail('action not recognised!')
+
 
 for site in sites:
     name = site["name"]
@@ -194,146 +338,9 @@ for site in sites:
                     config_fail('Supported protocols are "TLS" and "no-TLS".')
 
                 for ipver in ("IPv4", "IPv6",):
-                    if ipver == "IPv4":
-                        if not testipv4:
-                            continue
-                        
-                        curliptype = pycurl.IPRESOLVE_V4
-                        
-                    elif ipver == "IPv6":
-                        if not testipv6:
-                            continue
-                        
-                        curliptype = pycurl.IPRESOLVE_V6
 
-                    if mailto:
-                        mail_body += ipver + ', does "' + url + '" ' + \
-                        action + ' over "' + protocol + '"?' + "\n"
-                    else:
-                        print(ipver + ', does "' + url + '" ' +
-                              action + ' over "' + protocol + '"?')
+                    perform_test()
 
-                    buffer = BytesIO()
-                    c = pycurl.Curl()
-                    c.setopt(c.URL, prefix + url)
-                    c.setopt(c.FOLLOWLOCATION, False)
-                    c.setopt(c.TIMEOUT, 8)
-                    c.setopt(c.ACCEPT_ENCODING, "")
-                    c.setopt(c.USERAGENT, "xylositemonitor")
-                    c.setopt(c.IPRESOLVE, curliptype)
-                    c.setopt(c.WRITEFUNCTION, buffer.write)
-                    c.setopt(c.HEADERFUNCTION, header_function)
-
-                    headers = {}
-                    try:
-                        c.perform()
-                    except pycurl.error as e:
-                        test_fail(str(e))
-                        continue
-
-                    c.close()
-
-                    # Figure out what encoding was sent with the response, if any.
-                    # Check against lowercased header name.
-                    encoding = None
-                    if 'content-type' in headers:
-                        content_type = headers['content-type'].lower()
-                        match = re.search(r'charset=(\S+)', content_type)
-                        if match:
-                            encoding = match.group(1)
-                    if encoding is None:
-                        # Default encoding for HTML is iso-8859-1
-                        encoding = 'iso-8859-1'
-
-                    body = buffer.getvalue()
-                    responsebody = body.decode(encoding)
-
-                    if 'status' not in headers:
-                        test_fail("Can't get HTTP response code!")
-                        continue
-
-                    # The test hasn't failed yet!
-                    # Now we just need to test that "action" has been
-                    # met
-
-                    # There are three supported actions
-                    # http success
-                    #     this just tests for 200 status
-                    # return string
-                    #     this checks for 200 and the contents of the page for an expected string
-                    # redirect
-                    #     this checks that the status is a redirect code to the specified URL
-                    if action == "http success":
-                        if headers['status'] != "200":
-                            test_fail("HTTP status is: " + headers['status'])
-                            continue
-                        else:
-                            test_success()
-                            continue
-
-                    if action == "return string":
-                        # just check at least the status is 200 before even checking string
-                        if headers['status'] != "200":
-                            test_fail("HTTP status is: " + headers['status'])
-                            continue
-
-                        # we need ex_string var for this test
-                        try:
-                            re.search('[a-zA-Z0-9]+', ex_string).group(0)  # this
-                                                                           # will
-                                                                           # error
-                                                                           # on
-                                                                           # both
-                                                                           # blank
-                                                                           # string
-                                                                           # and
-                                                                           # non-string
-                        except (TypeError, AttributeError):
-                            config_fail('"return string" check specified but ' +
-                                        '"ex_string" is not defined!')
-
-                        # now we grep for the expected string in the response body
-                        if not ex_string in responsebody:
-                            test_fail("Don't find expected string!")
-                            continue
-                        else:
-                            test_success()
-                            continue
-
-                    if action == "redirect":
-                        if headers['status'][:1] != "3":
-                            test_fail("Response code is not a redirect: " +headers['status'])
-                            continue
-
-                        if 'location' not in headers:
-                            test_fail("Response code is a redirect but no Location header!")
-                            continue
-
-                        # we need can_address var for this test
-                        try:
-                            re.search('[a-zA-Z0-9]+', can_address).group(0)  # this
-                                                                             # will
-                                                                             # error
-                                                                             # on
-                                                                             # both
-                                                                             # blank
-                                                                             # string
-                                                                             # and
-                                                                             # non-string
-                        except (TypeError, AttributeError):
-                            config_fail('"redirect" check specified but ' +
-                                        '"can_address" is not defined!')
-
-                        # now we check redirect location
-                        if not headers['location'] == can_address:
-                            test_fail("Redirect location is wrong: " + headers['location'])
-                            continue
-                        else:
-                            test_success()
-                            continue
-
-                    # if we got here it means we didn't recognise the action
-                    config_fail('action not recognised!')
 
 if mailto:
     mail_body += "\n"
@@ -343,10 +350,10 @@ if mailto:
 
     # OK so we've got our mail body, now we just need to work out what our subject is
     if fail_count > 0:
-        send_mail(str(fail_count) + ' failing tests!')
+        send_mail(str(fail_count) + ' failing tests!', mail_body)
     else:
         if not emailonlyfail:
-            send_mail("all " + str(success_count) + " tests passed")
+            send_mail("all " + str(success_count) + " tests passed", mail_body)
 
 print("")
 print("Summary:")

@@ -1,8 +1,8 @@
 XyloSiteMonitor is a single-file python script which tests every
 permutation of ways your website can be accessed:
-- IPv4 or IPv6 
+- IPv4 or IPv6
 - TLS or not
-- www or not 
+- www or not
 
 Some permutations will result in a page loading. Others may result in
 a redirect. All permutations need testing.
@@ -12,7 +12,7 @@ Websites to be tested are defined in a beautiful YAML format.
 It produces a nice report and can pass the report to a local
 mail-server if you want.
 
-Here's an example: 
+Here's an example:
 
 ```
 - name: HomePage
@@ -33,30 +33,39 @@ Here's an example:
       protocols:
         - TLS
         - no-TLS
+```
+
+This translates into 8 checks and produces the following output:
+```
+_HomePage_
+
+IPv4, does "www.xylon.me.uk" return string over "TLS"?
+ Test Success!
+
+IPv6, does "www.xylon.me.uk" return string over "TLS"?
+ Test Success!
+
+IPv4, does "www.xylon.me.uk" redirect over "no-TLS"?
+ Test Success!
+
+IPv6, does "www.xylon.me.uk" redirect over "no-TLS"?
+ Test Success!
+
+IPv4, does "xylon.me.uk" redirect over "TLS"?
+ Test Success!
+
+IPv6, does "xylon.me.uk" redirect over "TLS"?
+ Test Success!
+
+IPv4, does "xylon.me.uk" redirect over "no-TLS"?
+ Test Success!
+
+IPv6, does "xylon.me.uk" redirect over "no-TLS"?
+ Test Success!
 
 Summary:
 8 tests passed
 0 tests failed
-```
-
-This translates into 8 checks and produces the following output: 
-```
-IPv4, does "www.xylon.me.uk" return string over "TLS"?
- Test Success!
-IPv6, does "www.xylon.me.uk" return string over "TLS"?
- Test Success!
-IPv4, does "www.xylon.me.uk" redirect over "no-TLS"?
- Test Success!
-IPv6, does "www.xylon.me.uk" redirect over "no-TLS"?
- Test Success!
-IPv4, does "xylon.me.uk" redirect over "TLS"?
- Test Success!
-IPv6, does "xylon.me.uk" redirect over "TLS"?
- Test Success!
-IPv4, does "xylon.me.uk" redirect over "no-TLS"?
- Test Success!
-IPv6, does "xylon.me.uk" redirect over "no-TLS"?
- Test Success!
 ```
 
 To monitor all 10 of my websites like this means 64 checks. To get
@@ -76,7 +85,7 @@ To find out the options please run:
 ./xylositemonitor.py --help
 ```
 
-I use it as a cron job on a dedicated monitoring server: 
+I use it as a cron job on a dedicated monitoring server:
 ```
 25 5 * * * /usr/local/bin/xylositemonitor.py --annotation 'SiteMonitor daily' --mailto joseph@xylon.me.uk
 33 * * * * /usr/local/bin/xylositemonitor.py --annotation 'SiteMonitor hourly' --mailto joseph@xylon.me.uk --email-only-on-fail

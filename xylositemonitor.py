@@ -132,9 +132,6 @@ def config_fail(message):
     sys.exit()
 
 def test_fail(message):
-    global fail_count
-    fail_count += 1
-
     return {
         "success": False,
         "text_body": BCOLORS["FAIL"] + "  Test Fail! " + message + BCOLORS["ENDC"] + "\n",
@@ -143,9 +140,6 @@ def test_fail(message):
 
 
 def test_success():
-    global success_count
-    success_count += 1
-
     return {
         "success": True,
         "text_body": BCOLORS["OKGREEN"] + " Test Success!" + BCOLORS["ENDC"] + "\n",
@@ -153,10 +147,7 @@ def test_success():
     }
 
 
-success_count = 0
-fail_count = 0
-if mailto:
-    mail_body = ""
+mail_body = ""
 
 def perform_test(ipver, testipv4, testipv6, prefix,
                  url, action, ex_string, can_address,
@@ -343,13 +334,8 @@ def test_site(site):
 
                     buildme["tests"] += [result]
 
-    # if any of the tests for this site failed, the site as a whole is
-    # considered to have failed
-    if False in [test["success"] for test in buildme["tests"]]:
-        buildme["success"] = False
-
-    else:
-        buildme["success"] = True
+    buildme["success_count"] = [test["success"] for test in buildme["tests"]].count(True)
+    buildme["fail_count"]    = [test["success"] for test in buildme["tests"]].count(False)
 
     return buildme
 
@@ -357,7 +343,10 @@ def test_site(site):
 siteresults = [test_site(site) for site in sites]
 
 # sort the sites based on success
-siteresultssorted = sorted(siteresults, key=lambda x: x["success"])
+siteresultssorted = sorted(siteresults, key=lambda x: x["fail_count"], reverse=True)
+
+success_total = sum([site["success_count"] for site in siteresults])
+fail_total    = sum([site["fail_count"]    for site in siteresults])
 
 if not mailto:
     for site in siteresultssorted:
@@ -371,8 +360,8 @@ if not mailto:
 
     print("")
     print("Summary:")
-    print(str(success_count) + " tests passed")
-    print(str(fail_count) + " tests failed")
+    print(str(success_total) + " tests passed")
+    print(str(fail_total) + " tests failed")
 
 else:
     for site in siteresultssorted:
@@ -385,12 +374,12 @@ else:
 
     mail_body += "\n"
     mail_body += "Summary:\n"
-    mail_body += str(success_count) + " tests passed\n"
-    mail_body += str(fail_count) + " tests failed\n"
+    mail_body += str(success_total) + " tests passed\n"
+    mail_body += str(fail_total) + " tests failed\n"
 
     # OK so we've got our mail body, now we just need to work out what our subject is
-    if fail_count > 0:
-        send_mail(str(fail_count) + ' failing tests!', mail_body)
+    if fail_total > 0:
+        send_mail(str(fail_total) + ' failing tests!', mail_body)
     else:
         if not emailonlyfail:
-            send_mail("all " + str(success_count) + " tests passed", mail_body)
+            send_mail("all " + str(success_total) + " tests passed", mail_body)

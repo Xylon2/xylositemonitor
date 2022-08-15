@@ -209,68 +209,70 @@ def perform_test(ipver, testipv4, testipv6, prefix,
     #     this checks for 200 and the contents of the page for an expected string
     # redirect
     #     this checks that the status is a redirect code to the specified URL
-    if action == "http success":
-        if headers['status'] != "200":
-            return test_fail("HTTP status is: " + headers['status'])
-        else:
-            return test_success()
+    match action:
+        case "http success":
+            if headers['status'] != "200":
+                return test_fail("HTTP status is: " + headers['status'])
+            else:
+                return test_success()
 
-    if action == "return string":
-        # just check at least the status is 200 before even checking string
-        if headers['status'] != "200":
-            return test_fail("HTTP status is: " + headers['status'])
+        case "return string":
+            # just check at least the status is 200 before even checking string
+            if headers['status'] != "200":
+                return test_fail("HTTP status is: " + headers['status'])
 
-        # we need ex_string var for this test
-        try:
-            re.search('[a-zA-Z0-9]+', ex_string).group(0)  # this
-            # will
-            # error
-            # on
-            # both
-            # blank
-            # string
-            # and
-            # non-string
-        except (TypeError, AttributeError):
-            config_fail('"return string" check specified but ' +
-                        '"expected string" is not defined!')
+            # we need ex_string var for this test
+            try:
+                re.search('[a-zA-Z0-9]+', ex_string).group(0)  # this
+                # will
+                # error
+                # on
+                # both
+                # blank
+                # string
+                # and
+                # non-string
+            except (TypeError, AttributeError):
+                config_fail('"return string" check specified but ' +
+                            '"expected string" is not defined!')
 
-        # now we grep for the expected string in the response body
-        if not ex_string in responsebody:
-            return test_fail("Don't find expected string!")
-        else:
-            return test_success()
+            # now we grep for the expected string in the response body
+            if not ex_string in responsebody:
+                return test_fail("Don't find expected string!")
+            else:
+                return test_success()
 
-    if action == "redirect":
-        if headers['status'][:1] != "3":
-            return test_fail("Response code is not a redirect: " +headers['status'])
+        case "redirect":
+            if headers['status'][:1] != "3":
+                return test_fail("Response code is not a redirect: " +headers['status'])
 
-        if 'location' not in headers:
-            return test_fail("Response code is a redirect but no Location header!")
+            if 'location' not in headers:
+                return test_fail("Response code is a redirect but no Location header!")
 
-        # we need can_address var for this test
-        try:
-            re.search('[a-zA-Z0-9]+', can_address).group(0)  # this
-            # will
-            # error
-            # on
-            # both
-            # blank
-            # string
-            # and
-            # non-string
-        except (TypeError, AttributeError):
-            config_fail('"redirect" check specified but ' +
-                        '"canonical address" is not defined!')
+            # we need can_address var for this test
+            try:
+                re.search('[a-zA-Z0-9]+', can_address).group(0)  # this
+                # will
+                # error
+                # on
+                # both
+                # blank
+                # string
+                # and
+                # non-string
+            except (TypeError, AttributeError):
+                config_fail('"redirect" check specified but ' +
+                            '"canonical address" is not defined!')
 
-        # now we check redirect location
-        if not headers['location'] == can_address:
-            return test_fail("Redirect location is wrong: " + headers['location'])
-        else:
-            return test_success()
+            # now we check redirect location
+            if not headers['location'] == can_address:
+                return test_fail("Redirect location is wrong: " + headers['location'])
+            else:
+                return test_success()
 
-    # if we got here it means we didn't recognise the action
-    config_fail('action not recognised!')
+        case _:
+            # if we got here it means we didn't recognise the action
+            config_fail('action not recognised!')
 
 
 def test_site(site):

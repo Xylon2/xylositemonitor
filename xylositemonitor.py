@@ -152,7 +152,10 @@ mail_body = ""
 def perform_test(ipver, testipv4, testipv6, prefix,
                  url, action, ex_string, can_address,
                  curliptype):
-    """we return a dictionary like {"success": True, "text_body": "blah", "mail_body": "blah"}"""
+    """
+    we return a dictionary like
+      {"success": True, "text_body": "blah", "mail_body": "blah"}
+    """
 
     buffer = BytesIO()
     c = pycurl.Curl()
@@ -271,6 +274,11 @@ def perform_test(ipver, testipv4, testipv6, prefix,
 
 
 def test_site(site):
+    """
+    we return a dictionary like
+      {"name": "Site Name", "success_count": 4, "fail_count": 2, "tests": []}
+    """
+
     buildme = {"name": site["name"], "tests": []}
     try:
         ex_string = site["expected string"]

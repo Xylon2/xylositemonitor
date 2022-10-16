@@ -66,6 +66,7 @@ IPv6, does "xylon.me.uk" redirect over "no-TLS"?
 Summary:
 8 tests passed
 0 tests failed
+0 sites re-tested
 ```
 
 To monitor all 10 of my websites like this means 64 checks. To get

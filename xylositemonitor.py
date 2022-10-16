@@ -5,6 +5,7 @@ import os
 import re
 from io import BytesIO
 import argparse
+import time
 
 import yaml
 import pycurl  # pycurl is annoyingly low-level but the easier
@@ -349,8 +350,24 @@ def test_site(site):
 
     return buildme
 
+def check_result(site):
+    """if the site has any failed tests, re-test it"""
+    if site["fail_count"] == 0:
+        return site
+    else:
+        # here we need to get the original data out of global variable "sites"
+        # to test it again
+        return test_site([x for x in sites if x["name"] == site["name"]][0])
+
 # this is a list of dicts
 siteresults = [test_site(site) for site in sites]
+
+# any that failed will be re-tested
+restest_total = len([x for x in siteresults if x["fail_count"] != 0])
+
+if restest_total > 0:
+    time.sleep(10)
+    siteresults = [check_result(site) for site in siteresults]
 
 # sort the sites based on success
 siteresultssorted = sorted(siteresults, key=lambda x: x["fail_count"], reverse=True)
@@ -372,6 +389,7 @@ if not mailto:
     print("Summary:")
     print(str(success_total) + " tests passed")
     print(str(fail_total) + " tests failed")
+    print(str(restest_total) + " sites re-tested")
 
 else:
     for site in siteresultssorted:
@@ -386,6 +404,7 @@ else:
     mail_body += "Summary:\n"
     mail_body += str(success_total) + " tests passed\n"
     mail_body += str(fail_total) + " tests failed\n"
+    mail_body += str(restest_total) + " sites re-tested\n"
 
     # OK so we've got our mail body, now we just need to work out what our subject is
     if fail_total > 0:

@@ -75,10 +75,11 @@ wouldn't allow me to explicitly test IPv4 vs IPv6. Rival service
 Pingdom can do IPv4 or 6 but this many checks would require an
 "Advanced" plan for £48 GBP per month!
 
-Dependencies are:
+Dependencies from apt are:
 - python3
 - python3-yaml
 - python3-pycurl
+- python3-openssl
 
 To find out the options please run:
 

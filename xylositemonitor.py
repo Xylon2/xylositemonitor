@@ -160,21 +160,6 @@ def perform_test(ipver, testipv4, testipv6, prefix,
       {"success": True, "text_body": "blah", "mail_body": "blah"}
     """
 
-    # If it's https we check the certificate date before doing anything else
-    # note this doesn't care about ipv4 vs 6 as it connects by hostname
-    if prefix == "https://":
-        cert=ssl.get_server_certificate((url.split('/')[0], 443))  # it takes a tuple
-        x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
-        timestamp = x509.get_notAfter().decode('utf-8')
-        etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
-
-        # now to compare
-        two_weeks = timedelta(weeks=2)
-        now = datetime.now(timezone.utc)
-
-        if etime - now < two_weeks:
-            return test_fail("certificate expires in " + etime.date().isoformat())
-
     buffer = BytesIO()
     c = pycurl.Curl()
     c.setopt(c.URL, prefix + url)
@@ -290,6 +275,59 @@ def perform_test(ipver, testipv4, testipv6, prefix,
             # if we got here it means we didn't recognise the action
             config_fail('action not recognised!')
 
+def cert_test(url):
+    """
+    we return a dictionary like
+      {"success": True, "text_body": "blah", "mail_body": "blah"}
+    """
+
+    # we need to get the domain from the url
+    domain = url.split('/')[0]
+
+    # If it's https we check the certificate date before doing anything else
+    # note this doesn't care about ipv4 vs 6 as it connects by hostname
+    cert=ssl.get_server_certificate((domain, 443))  # it takes a tuple
+    x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+    timestamp = x509.get_notAfter().decode('utf-8')
+    etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
+
+    # now to compare
+    exweeks = 2
+    delta_weeks = timedelta(weeks=exweeks)
+    now = datetime.now(timezone.utc)
+
+    if etime - now < delta_weeks:
+        result = test_fail("certificate expires in " + etime.date().isoformat())
+    else:
+        result = test_success()
+
+    # prepend test description
+    prepend = f'does "{domain}" have at-least {exweeks} weeks before cert expiry?'
+    result["mail_body"] = prepend + "\n" + result["mail_body"]
+    result["text_body"] = prepend + "\n" + result["text_body"]
+
+    return result
+
+def test_summary(ipver, testipv4, testipv6, protocol, url, action, ex_string,
+                 can_address, curliptype):
+    """since the perform_test function has mutliple exit-points, we need to
+    collect it's output and summarize what it means"""
+
+    if protocol == "TLS":
+        prefix = "https://"
+    elif protocol == "no-TLS":
+        prefix = "http://"
+
+    # here we actually run the tests
+    result = perform_test(ipver, testipv4, testipv6, prefix, url, action,
+                          ex_string, can_address, curliptype)
+
+    # prepend test description
+    prepend = f'{ipver}, does "{url}" {action} over "{protocol}"?'
+    result["mail_body"] = prepend + "\n" + result["mail_body"]
+    result["text_body"] = prepend + "\n" + result["text_body"]
+
+    return result
 
 def test_site(site):
     """
@@ -327,12 +365,12 @@ def test_site(site):
             action = test["action"]
 
             for protocol in test["protocols"]:
-                if protocol == "TLS":
-                    prefix = "https://"
-                elif protocol == "no-TLS":
-                    prefix = "http://"
-                else:
+                if not protocol in ("TLS", "no-TLS"):
                     config_fail('Supported protocols are "TLS" and "no-TLS".')
+                
+                if protocol == "TLS":
+                    # do an extra test
+                    buildme["tests"] += [cert_test(url)]
 
                 for ipver in ("IPv4", "IPv6",):
                     if ipver == "IPv4":
@@ -347,18 +385,10 @@ def test_site(site):
 
                         curliptype = pycurl.IPRESOLVE_V6
 
-                    # here we actually run the tests
-                    result = perform_test(ipver, testipv4, testipv6, prefix,
-                                          url, action, ex_string, can_address,
-                                          curliptype)
-
-                    # prepend test description
-                    result["mail_body"] = ipver + ', does "' + url + '" ' + \
-                        action + ' over "' + protocol + '"?' + "\n" + result["mail_body"]
-                    result["text_body"] = ipver + ', does "' + url + '" ' + \
-                        action + ' over "' + protocol + '"?' + "\n" + result["text_body"]
-
-                    buildme["tests"] += [result]
+                    buildme["tests"] += [test_summary(ipver, testipv4, testipv6,
+                                                      protocol, url, action,
+                                                      ex_string, can_address,
+                                                      curliptype)]
 
     buildme["success_count"] = [test["success"] for test in buildme["tests"]].count(True)
     buildme["fail_count"]    = [test["success"] for test in buildme["tests"]].count(False)

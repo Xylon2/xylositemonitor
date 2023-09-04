@@ -75,7 +75,7 @@ def send_mail(subject, mail_body):
     smtpcon.quit()  # close connection
 
 
-def header_function(header_line):
+def header_function(headers, header_line):
     """We have to parse http headers manually becasue libcurl doesn't do it for us."""
 
     # HTTP standard specifies that headers are encoded in iso-8859-1.
@@ -167,13 +167,11 @@ def perform_test(ipver, testipv4, testipv6, prefix,
     c.setopt(c.USERAGENT, "xylositemonitor")
     c.setopt(c.IPRESOLVE, curliptype)
     c.setopt(c.WRITEFUNCTION, buffer.write)
-    c.setopt(c.HEADERFUNCTION, header_function)
 
-    # the reason we use a global variable here is because when we call
-    # c.perform() below it will call header_function, which will then
-    # modify this variable in the global scope so we can access it
-    global headers
+    # we give curl a function to call which modifies our variable
     headers = {}
+    c.setopt(c.HEADERFUNCTION, lambda x: header_function(headers, x))
+
     try:
         c.perform()
     except pycurl.error as e:

@@ -152,36 +152,6 @@ def test_success():
 
 mail_body = ""
 
-
-class cert_tester:
-    # the only reason we use a class here is to stop it testing each domain more
-    # than once
-    def __init__(self):
-        # a dict to store the results from domains we already tested
-        self.domains = {}
-
-    def test(self, domain):
-        # if we didn't already test it
-        if not domain in self.domains:
-            # note this doesn't care about ipv4 vs 6 as it connects by hostname
-            cert=ssl.get_server_certificate((domain, 443))  # it takes a tuple
-            x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
-            timestamp = x509.get_notAfter().decode('utf-8')
-            etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
-
-            # now to compare
-            two_weeks = timedelta(weeks=2)
-            now = datetime.now(timezone.utc)
-
-            if etime - now < two_weeks:
-                self.domains[domain] = (False, etime.date().isoformat())
-            else:
-                self.domains[domain] = (True, etime.date().isoformat())
-
-        return self.domains[domain]
-
-cert_tester1 = cert_tester()
-
 def perform_test(ipver, testipv4, testipv6, prefix,
                  url, action, ex_string, can_address,
                  curliptype):
@@ -191,11 +161,19 @@ def perform_test(ipver, testipv4, testipv6, prefix,
     """
 
     # If it's https we check the certificate date before doing anything else
+    # note this doesn't care about ipv4 vs 6 as it connects by hostname
     if prefix == "https://":
-        test_result, expiry_date = cert_tester1.test(url.split('/')[0])
+        cert=ssl.get_server_certificate((url.split('/')[0], 443))  # it takes a tuple
+        x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+        timestamp = x509.get_notAfter().decode('utf-8')
+        etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
 
-        if not test_result:
-            return test_fail("certificate expires at " + expiry_date)
+        # now to compare
+        two_weeks = timedelta(weeks=2)
+        now = datetime.now(timezone.utc)
+
+        if etime - now < two_weeks:
+            return test_fail("certificate expires in " + etime.date().isoformat())
 
     buffer = BytesIO()
     c = pycurl.Curl()

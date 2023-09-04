@@ -11,7 +11,9 @@ import yaml
 import pycurl  # pycurl is annoyingly low-level but the easier
                # "requests" module does not allow forcing IP version
 
-from functools import reduce
+from datetime import datetime, timedelta, timezone
+import OpenSSL
+import ssl
 
 # Command line arguments.
 parser = argparse.ArgumentParser(description='Tests websites.')
@@ -158,6 +160,21 @@ def perform_test(ipver, testipv4, testipv6, prefix,
       {"success": True, "text_body": "blah", "mail_body": "blah"}
     """
 
+    # If it's https we check the certificate date before doing anything else
+    # note this doesn't care about ipv4 vs 6 as it connects by hostname
+    if prefix == "https://":
+        cert=ssl.get_server_certificate((url.split('/')[0], 443))  # it takes a tuple
+        x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+        timestamp = x509.get_notAfter().decode('utf-8')
+        etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
+
+        # now to compare
+        two_weeks = timedelta(weeks=2)
+        now = datetime.now(timezone.utc)
+
+        if etime - now < two_weeks:
+            return test_fail("certificate expires in " + etime.date().isoformat())
+
     buffer = BytesIO()
     c = pycurl.Curl()
     c.setopt(c.URL, prefix + url)
@@ -172,6 +189,7 @@ def perform_test(ipver, testipv4, testipv6, prefix,
     headers = {}
     c.setopt(c.HEADERFUNCTION, lambda x: header_function(headers, x))
 
+    # call curl
     try:
         c.perform()
     except pycurl.error as e:
@@ -197,9 +215,8 @@ def perform_test(ipver, testipv4, testipv6, prefix,
     if 'status' not in headers:
         return test_fail("Can't get HTTP response code!")
 
-    # The test hasn't failed yet!
-    # Now we just need to test that "action" has been
-    # met
+    # If the test hasn't failed yet then now we need to test that "action" has
+    # been met.
 
     # There are three supported actions
     # http success

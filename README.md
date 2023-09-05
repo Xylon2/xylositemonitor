@@ -12,9 +12,14 @@ Websites to be tested are defined in a beautiful YAML format.
 It produces a nice report and can pass the report to a local
 mail-server if you want.
 
-Here's an example:
+Here's an example config:
 
 ```
+---
+
+options:
+  cert expiry weeks: 2
+sites:
 - name: HomePage
   expected string: Joseph Graham
   canonical address: https://www.xylon.me.uk/
@@ -35,9 +40,12 @@ Here's an example:
         - no-TLS
 ```
 
-This translates into 8 checks and produces the following output:
+This translates into 10 checks and produces the following output:
 ```
 _HomePage_
+
+does "www.xylon.me.uk" have at-least 2 weeks before cert expiry?
+ Test Success!
 
 IPv4, does "www.xylon.me.uk" return string over "TLS"?
  Test Success!
@@ -49,6 +57,9 @@ IPv4, does "www.xylon.me.uk" redirect over "no-TLS"?
  Test Success!
 
 IPv6, does "www.xylon.me.uk" redirect over "no-TLS"?
+ Test Success!
+
+does "xylon.me.uk" have at-least 2 weeks before cert expiry?
  Test Success!
 
 IPv4, does "xylon.me.uk" redirect over "TLS"?
@@ -64,7 +75,7 @@ IPv6, does "xylon.me.uk" redirect over "no-TLS"?
  Test Success!
 
 Summary:
-8 tests passed
+10 tests passed
 0 tests failed
 0 sites re-tested
 ```

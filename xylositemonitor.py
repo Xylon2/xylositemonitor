@@ -60,7 +60,12 @@ if not os.path.isfile(sitesfile):
     sys.exit()
 
 with open(sitesfile, 'r') as stream:
-    sites = yaml.safe_load(stream)
+    loaded = yaml.safe_load(stream)
+    options = loaded['options']
+    sites = loaded['sites']
+
+    # specific options
+    exweeks = options['cert expiry weeks']
 
 def send_mail(subject, mail_body):
     """send the mail"""
@@ -292,7 +297,6 @@ def cert_test(url):
     etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
 
     # now to compare
-    exweeks = 2
     delta_weeks = timedelta(weeks=exweeks)
     now = datetime.now(timezone.utc)
 
@@ -367,8 +371,8 @@ def test_site(site):
             for protocol in test["protocols"]:
                 if not protocol in ("TLS", "no-TLS"):
                     config_fail('Supported protocols are "TLS" and "no-TLS".')
-                
-                if protocol == "TLS":
+
+                if exweeks > 0 and protocol == "TLS":
                     # do an extra test
                     buildme["tests"] += [cert_test(url)]
 

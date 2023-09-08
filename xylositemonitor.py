@@ -200,9 +200,7 @@ def call_curl(prefix, url, curliptype):
 
     return (headers, responsebody)
 
-def perform_test(ipver, testipv4, testipv6, prefix,
-                 url, action, ex_string, can_address,
-                 curliptype):
+def perform_test(prefix, url, action, ex_string, can_address, curliptype):
     """
     we return a dictionary like
       {"success": True, "text_body": "blah", "mail_body": "blah"}
@@ -317,8 +315,7 @@ def cert_test(url):
 
     return result
 
-def test_summary(ipver, testipv4, testipv6, protocol, url, action, ex_string,
-                 can_address, curliptype):
+def test_summary(protocol, url, action, ex_string, can_address, curliptype, ipver):
     """since the perform_test function has mutliple exit-points, we need to
     collect it's output and summarize what it means"""
 
@@ -328,8 +325,8 @@ def test_summary(ipver, testipv4, testipv6, protocol, url, action, ex_string,
         prefix = "http://"
 
     # here we actually run the tests
-    result = perform_test(ipver, testipv4, testipv6, prefix, url, action,
-                          ex_string, can_address, curliptype)
+    result = perform_test(prefix, url, action, ex_string, can_address,
+                          curliptype)
 
     # prepend test description
     prepend = f'{ipver}, does "{url}" {action} over "{protocol}"?'
@@ -344,60 +341,52 @@ def test_site(site):
       {"name": "Site Name", "success_count": 4, "fail_count": 2, "tests": []}
     """
 
+    # get method allows us to have default value
+    ex_string = site.get("expected string", "")
+    can_address = site.get("canonical address", "")
+    testipv4 = site.get("ipv4", True)
+    testipv6 = site.get("ipv6", True)
+
     buildme = {"name": site["name"], "tests": []}
-    try:
-        ex_string = site["expected string"]
-    except KeyError:
-        ex_string = ""  # if this var is needed it will be validated and fail later :)
 
-    try:
-        can_address = site["canonical address"]
-    except KeyError:
-        can_address = ""  # if this var is needed it will be validated and fail later :)
+    # rather than using four levels of nested loop, we are flattening it using a
+    # mind-boggling list comprehension instead
+    urls_flattened = [
+        {
+            "url": urldef["url"],
+            "action": test["action"],
+            "protocol": protocol
+        }
+        for urldef in site["urls"]
+        for test in urldef["tests"]
+        for protocol in test["protocols"]
+    ]
 
-    try:
-        testipv4 = site["ipv4"]
-    except KeyError:
-        testipv4 = True
+    for test in urls_flattened:
+        # python doesn't have destructuring so do it like gorilla
+        url, action, protocol = test["url"], test["action"], test["protocol"]
 
-    try:
-        testipv6 = site["ipv6"]
-    except KeyError:
-        testipv6 = True
-
-    for urldef in site["urls"]:
-        url = urldef["url"]
         if url[:7] == "http://" or url[:8] == "https://":
             config_fail('Do not specify protocol in url.')
 
-        for test in urldef["tests"]:
-            action = test["action"]
+        if not protocol in ("TLS", "no-TLS"):
+            config_fail('Supported protocols are "TLS" and "no-TLS".')
 
-            for protocol in test["protocols"]:
-                if not protocol in ("TLS", "no-TLS"):
-                    config_fail('Supported protocols are "TLS" and "no-TLS".')
-
-                if exweeks > 0 and protocol == "TLS":
+        if exweeks > 0 and protocol == "TLS":
                     # do an extra test
                     buildme["tests"] += [cert_test(url)]
 
-                for ipver in ("IPv4", "IPv6",):
-                    if ipver == "IPv4":
-                        if not testipv4:
-                            continue
+        if testipv4:
+            buildme["tests"] += [test_summary(protocol, url, action,
+                                              ex_string, can_address,
+                                              pycurl.IPRESOLVE_V4,
+                                              "IPv4")]
 
-                        curliptype = pycurl.IPRESOLVE_V4
-
-                    elif ipver == "IPv6":
-                        if not testipv6:
-                            continue
-
-                        curliptype = pycurl.IPRESOLVE_V6
-
-                    buildme["tests"] += [test_summary(ipver, testipv4, testipv6,
-                                                      protocol, url, action,
-                                                      ex_string, can_address,
-                                                      curliptype)]
+        if testipv6:
+            buildme["tests"] += [test_summary(protocol, url, action,
+                                              ex_string, can_address,
+                                              pycurl.IPRESOLVE_V6,
+                                              "IPv6")]
 
     buildme["success_count"] = [test["success"] for test in buildme["tests"]].count(True)
     buildme["fail_count"]    = [test["success"] for test in buildme["tests"]].count(False)

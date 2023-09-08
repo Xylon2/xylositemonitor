@@ -53,6 +53,10 @@ try:
 except (TypeError, AttributeError):
     annotation = "XyloSiteMonitor"
 
+class HeaderException(Exception):
+    """Problem parsing the headers."""
+    pass
+
 # don't even try to open sitesfile unless it's there
 if not os.path.isfile(sitesfile):
     print('Initialisation Error! Cannot find sitesfile at "' + sitesfile +
@@ -157,14 +161,7 @@ def test_success():
 
 mail_body = ""
 
-def perform_test(ipver, testipv4, testipv6, prefix,
-                 url, action, ex_string, can_address,
-                 curliptype):
-    """
-    we return a dictionary like
-      {"success": True, "text_body": "blah", "mail_body": "blah"}
-    """
-
+def call_curl(prefix, url, curliptype):
     buffer = BytesIO()
     c = pycurl.Curl()
     c.setopt(c.URL, prefix + url)
@@ -180,11 +177,7 @@ def perform_test(ipver, testipv4, testipv6, prefix,
     c.setopt(c.HEADERFUNCTION, lambda x: header_function(headers, x))
 
     # call curl
-    try:
-        c.perform()
-    except pycurl.error as e:
-        return test_fail(str(e))
-
+    c.perform()
     c.close()
 
     # Figure out what encoding was sent with the response, if any.
@@ -203,12 +196,24 @@ def perform_test(ipver, testipv4, testipv6, prefix,
     responsebody = body.decode(encoding)
 
     if 'status' not in headers:
-        return test_fail("Can't get HTTP response code!")
+        raise HeaderException("Can't get HTTP response code!")
 
-    # If the test hasn't failed yet then now we need to test that "action" has
-    # been met.
+    return (headers, responsebody)
 
-    # There are three supported actions
+def perform_test(ipver, testipv4, testipv6, prefix,
+                 url, action, ex_string, can_address,
+                 curliptype):
+    """
+    we return a dictionary like
+      {"success": True, "text_body": "blah", "mail_body": "blah"}
+    """
+
+    try:
+        headers, responsebody = call_curl(prefix, url, curliptype)
+    except (pycurl.error, HeaderException) as e:
+        return test_fail(str(e))
+
+    # There are three supported actions to test for
     # http success
     #     this just tests for 200 status
     # return string

@@ -232,15 +232,10 @@ def perform_test(prefix, url, action, ex_string, can_address, curliptype):
 
             # we need ex_string var for this test
             try:
-                re.search('[a-zA-Z0-9]+', ex_string).group(0)  # this
-                # will
-                # error
-                # on
-                # both
-                # blank
-                # string
-                # and
-                # non-string
+                re.search('[a-zA-Z0-9]+', ex_string).group(0)  # this will error
+                                                               # on both blank
+                                                               # string and
+                                                               # non-string
             except (TypeError, AttributeError):
                 config_fail('"return string" check specified but ' +
                             '"expected string" is not defined!')
@@ -260,15 +255,10 @@ def perform_test(prefix, url, action, ex_string, can_address, curliptype):
 
             # we need can_address var for this test
             try:
-                re.search('[a-zA-Z0-9]+', can_address).group(0)  # this
-                # will
-                # error
-                # on
-                # both
-                # blank
-                # string
-                # and
-                # non-string
+                re.search('[a-zA-Z0-9]+', can_address).group(0) # this will
+                                                                # error on both
+                                                                # blank string
+                                                                # and non-string
             except (TypeError, AttributeError):
                 config_fail('"redirect" check specified but ' +
                             '"canonical address" is not defined!')
@@ -377,15 +367,13 @@ def test_site(site):
                     buildme["tests"] += [cert_test(url)]
 
         if testipv4:
-            buildme["tests"] += [test_summary(protocol, url, action,
-                                              ex_string, can_address,
-                                              pycurl.IPRESOLVE_V4,
+            buildme["tests"] += [test_summary(protocol, url, action, ex_string,
+                                              can_address, pycurl.IPRESOLVE_V4,
                                               "IPv4")]
 
         if testipv6:
-            buildme["tests"] += [test_summary(protocol, url, action,
-                                              ex_string, can_address,
-                                              pycurl.IPRESOLVE_V6,
+            buildme["tests"] += [test_summary(protocol, url, action, ex_string,
+                                              can_address, pycurl.IPRESOLVE_V6,
                                               "IPv6")]
 
     buildme["success_count"] = [test["success"] for test in buildme["tests"]].count(True)

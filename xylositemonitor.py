@@ -21,37 +21,15 @@ parser.add_argument('--sites-file', dest='sitesfile')
 parser.add_argument('--mailto', dest='mailaddress')
 parser.add_argument('--annotation', dest='annotation')
 parser.add_argument('--email-only-on-fail', dest='emailonlyfail', action='store_true')
+
+# parse
 args = parser.parse_args()
-mailto = args.mailaddress
-sitesfile = args.sitesfile
-annotation = args.annotation
 emailonlyfail = args.emailonlyfail
 
-# We need to test both that it's not None and that it's not empty
-try:
-    re.search('[a-zA-Z0-9]+', mailto).group(0)  # this will error on
-                                                # both blank string
-                                                # and non-string
-except (TypeError, AttributeError):
-    mailto = False
-
-# We need to test both that it's not None and that it's not empty
-try:
-    re.search('[a-zA-Z0-9]+', sitesfile).group(0)  # this will error
-                                                   # on both blank
-                                                   # string and
-                                                   # non-string
-except (TypeError, AttributeError):
-    sitesfile = "/etc/xylosites.yml"
-
-# We need to test both that it's not None and that it's not empty
-try:
-    re.search('[a-zA-Z0-9]+', annotation).group(0)  # this will error
-                                                    # on both blank
-                                                    # string and
-                                                    # non-string
-except (TypeError, AttributeError):
-    annotation = "XyloSiteMonitor"
+# since the empty string is falsy we can set defaults with this "short-circuiting" method
+mailto = args.mailaddress or False
+sitesfile = args.sitesfile or "/etc/xylosites.yml"
+annotation = args.annotation or "XyloSiteMonitor"
 
 class HeaderException(Exception):
     """Problem parsing the headers."""

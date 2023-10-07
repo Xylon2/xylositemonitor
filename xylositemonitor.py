@@ -284,7 +284,7 @@ def cert_test(url):
     return result
 
 def test_summary(protocol, url, action, ex_string, can_address, curliptype, ipver):
-    """since the perform_test function has mutliple exit-points, we need to
+    """since the perform_test function has multiple exit-points, we need to
     collect it's output and summarize what it means"""
 
     if protocol == "TLS":
@@ -341,8 +341,8 @@ def test_site(site):
             config_fail('Supported protocols are "TLS" and "no-TLS".')
 
         if exweeks > 0 and protocol == "TLS":
-                    # do an extra test
-                    buildme["tests"] += [cert_test(url)]
+            # do an extra test
+            buildme["tests"] += [cert_test(url)]
 
         if testipv4:
             buildme["tests"] += [test_summary(protocol, url, action, ex_string,
@@ -415,7 +415,7 @@ else:
     mail_body += str(fail_total) + " tests failed\n"
     mail_body += str(restest_total) + " sites re-tested\n"
 
-    # OK so we've got our mail body, now we just need to work out what our subject is
+    # we've got our mail body, now we just need to work out what our subject is
     if fail_total > 0:
         send_mail(str(fail_total) + ' failing tests!', mail_body)
     else:

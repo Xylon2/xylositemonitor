@@ -6,6 +6,7 @@ import re
 from io import BytesIO
 import argparse
 import time
+import traceback
 
 import yaml
 import pycurl  # pycurl is annoyingly low-level but the easier
@@ -63,6 +64,20 @@ def send_mail(subject, mail_body):
     smtpcon.send_message(msg)
     smtpcon.quit()  # close connection
 
+def handle_unhandled_exception(exc_type, exc_value, exc_traceback):
+    if not issubclass(exc_type, KeyboardInterrupt):
+        mail_body = "Unhandled exception caught:" + "\n\n"
+        mail_body += f"Type: {exc_type}" + "\n"
+        mail_body += f"Value: {exc_value}" + "\n"
+        mail_body += "Traceback:\n"
+        mail_body += "".join(traceback.format_tb(exc_traceback))
+
+        send_mail('Exception running script',  mail_body)
+
+    # call the standard excepthook afterwards
+    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+sys.excepthook = handle_unhandled_exception
 
 def header_function(headers, header_line):
     """We have to parse http headers manually becasue libcurl doesn't do it for us."""

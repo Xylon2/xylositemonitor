@@ -7,6 +7,7 @@ from io import BytesIO
 import argparse
 import time
 import traceback
+import socket
 
 import yaml
 import pycurl  # pycurl is annoyingly low-level but the easier
@@ -277,19 +278,22 @@ def cert_test(url):
 
     # If it's https we check the certificate date before doing anything else
     # note this doesn't care about ipv4 vs 6 as it connects by hostname
-    cert=ssl.get_server_certificate((domain, 443))  # it takes a tuple
-    x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
-    timestamp = x509.get_notAfter().decode('utf-8')
-    etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
+    try:
+        cert=ssl.get_server_certificate((domain, 443), timeout=8)  # it takes a tuple
+        x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+        timestamp = x509.get_notAfter().decode('utf-8')
+        etime = datetime.strptime(timestamp, '%Y%m%d%H%M%S%z')
 
-    # now to compare
-    delta_weeks = timedelta(weeks=exweeks)
-    now = datetime.now(timezone.utc)
+        # now to compare
+        delta_weeks = timedelta(weeks=exweeks)
+        now = datetime.now(timezone.utc)
 
-    if etime - now < delta_weeks:
-        result = test_fail("certificate expires in " + etime.date().isoformat())
-    else:
-        result = test_success()
+        if etime - now < delta_weeks:
+            result = test_fail("certificate expires in " + etime.date().isoformat())
+        else:
+            result = test_success()
+    except (TimeoutError, ConnectionRefusedError, ConnectionError, socket.error) as e:
+        result = test_fail(f"Failed to get certificate: {str(e)}")
 
     # prepend test description
     prepend = f'does "{domain}" have at-least {exweeks} weeks before cert expiry?'

@@ -246,7 +246,7 @@ def perform_test(prefix, url, action, ex_string, can_address, curliptype):
 
             if 'location' not in headers:
                 return test_fail("Response code is a redirect but no Location header!")
-
+            
             # we need can_address var for this test
             try:
                 re.search('[a-zA-Z0-9]+', can_address).group(0) # this will
@@ -256,10 +256,61 @@ def perform_test(prefix, url, action, ex_string, can_address, curliptype):
             except (TypeError, AttributeError):
                 config_fail('"redirect" check specified but ' +
                             '"canonical address" is not defined!')
+            
+            # Follow redirects until we reach the final destination
+            redirect_url = headers['location']
+            max_redirects = 3  # Limit to 3 redirects
+            redirect_chain = [redirect_url]
+            
+            # Follow the redirect chain
+            while max_redirects > 0 and redirect_url.startswith(('http://', 'https://')):
+                try:
+                    # Parse the URL to determine protocol and url
+                    if redirect_url.startswith('https://'):
+                        next_prefix = 'https://'
+                        next_url = redirect_url[8:]
+                    else:  # http://
+                        next_prefix = 'http://'
+                        next_url = redirect_url[7:]
+                    
+                    # Call curl for the next URL in the chain
+                    next_headers, _ = call_curl(next_prefix, next_url, curliptype)
+                    
+                    # Check if we've reached the end of the redirect chain
+                    if next_headers['status'][:1] != "3" or 'location' not in next_headers:
+                        break
+                    
+                    redirect_url = next_headers['location']
+                    redirect_chain.append(redirect_url)
+                    max_redirects -= 1
+                except (pycurl.error, HeaderException) as e:
+                    return test_fail(f"Error following redirect chain: {str(e)}")
+            
+            # Handle relative URLs in the redirect chain
+            final_url = redirect_chain[-1]
+            if not final_url.startswith(('http://', 'https://')):
+                # Resolve relative URL
+                if final_url.startswith('/'):
+                    # Absolute path
+                    domain = None
+                    for prev_url in redirect_chain[:-1]:
+                        if prev_url.startswith(('http://', 'https://')):
+                            domain = prev_url.split('/')[2]  # Get domain from previous URL
+                            scheme = 'https://' if prev_url.startswith('https://') else 'http://'
+                            final_url = f"{scheme}{domain}{final_url}"
+                            break
+                    if domain is None:
+                        domain = url.split('/')[0]
+                        final_url = f"{prefix}{domain}{final_url}"
+                else:
+                    # Relative path - use last URL as base
+                    if len(redirect_chain) > 1:
+                        base_url = redirect_chain[-2]
+                        final_url = f"{'/'.join(base_url.split('/')[:-1])}/{final_url}"
 
-            # now we check redirect location
-            if not headers['location'] == can_address:
-                return test_fail("Redirect location is wrong: " + headers['location'])
+            # now we check the final redirect location
+            if not final_url == can_address:
+                return test_fail(f"Final redirect location is wrong: {final_url} (expected {can_address})")
             else:
                 return test_success()
 

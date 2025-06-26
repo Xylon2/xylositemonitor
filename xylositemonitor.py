@@ -23,10 +23,12 @@ parser.add_argument('--sites-file', dest='sitesfile')
 parser.add_argument('--mailto', dest='mailaddress')
 parser.add_argument('--annotation', dest='annotation')
 parser.add_argument('--email-only-on-fail', dest='emailonlyfail', action='store_true')
+parser.add_argument('--skip-ssl-verify', dest='skipssl', action='store_true')
 
 # parse
 args = parser.parse_args()
 emailonlyfail = args.emailonlyfail
+skipssl = args.skipssl
 
 # since the empty string is falsy we can set defaults with this "short-circuiting" method
 mailto = args.mailaddress or False
@@ -43,10 +45,13 @@ if not os.path.isfile(sitesfile):
           '"\nPlease place it here or specify location with --sites-file=')
     sys.exit()
 
+def destructure(dictionary, *keys):
+    """it boggles my mind that Python doesn't have destructuring"""
+    return (dictionary[key] for key in keys)
+
 with open(sitesfile, 'r') as stream:
     loaded = yaml.safe_load(stream)
-    options = loaded['options']
-    sites = loaded['sites']
+    options, sites = destructure(loaded, 'options', 'sites')
 
     # specific options
     exweeks = options['cert expiry weeks']
@@ -385,7 +390,7 @@ def test_site(site):
     testipv4 = site.get("ipv4", True)
     testipv6 = site.get("ipv6", True)
 
-    buildme = {"name": site["name"], "tests": []}
+    acc = {"name": site["name"], "tests": []}
 
     # rather than using four levels of nested loop, we are flattening it using a
     # mind-boggling list comprehension instead
@@ -401,8 +406,7 @@ def test_site(site):
     ]
 
     for test in urls_flattened:
-        # python doesn't have destructuring so do it like gorilla
-        url, action, protocol = test["url"], test["action"], test["protocol"]
+        url, action, protocol = destructure(test, "url", "action", "protocol")
 
         if url[:7] == "http://" or url[:8] == "https://":
             config_fail('Do not specify protocol in url.')
@@ -410,24 +414,24 @@ def test_site(site):
         if not protocol in ("TLS", "no-TLS"):
             config_fail('Supported protocols are "TLS" and "no-TLS".')
 
-        if exweeks > 0 and protocol == "TLS":
+        if exweeks > 0 and protocol == "TLS" and not skipssl:
             # do an extra test
-            buildme["tests"] += [cert_test(url)]
+            acc["tests"] += [cert_test(url)]
 
         if testipv4:
-            buildme["tests"] += [test_summary(protocol, url, action, ex_string,
+            acc["tests"] += [test_summary(protocol, url, action, ex_string,
                                               can_address, pycurl.IPRESOLVE_V4,
                                               "IPv4")]
 
         if testipv6:
-            buildme["tests"] += [test_summary(protocol, url, action, ex_string,
+            acc["tests"] += [test_summary(protocol, url, action, ex_string,
                                               can_address, pycurl.IPRESOLVE_V6,
                                               "IPv6")]
 
-    buildme["success_count"] = [test["success"] for test in buildme["tests"]].count(True)
-    buildme["fail_count"]    = [test["success"] for test in buildme["tests"]].count(False)
+    acc["success_count"] = [test["success"] for test in acc["tests"]].count(True)
+    acc["fail_count"]    = [test["success"] for test in acc["tests"]].count(False)
 
-    return buildme
+    return acc
 
 def check_result(site):
     """if the site has any failed tests, re-test it"""
